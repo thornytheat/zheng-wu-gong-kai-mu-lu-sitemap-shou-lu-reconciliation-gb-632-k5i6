@@ -32,7 +32,8 @@ def test_end_to_end_from_sample_site(client):
 
 
 def test_all_pages_render(client_with_run):
-    for path in ("/", "/sites", "/reach", "/reconcile", "/batches", "/defects"):
+    for path in ("/", "/sites", "/reach", "/reconcile", "/batches", "/defects",
+                 "/notices"):
         response = client_with_run.get(path)
         assert response.status_code == 200, path
         assert "河州市政务公开办" in response.text

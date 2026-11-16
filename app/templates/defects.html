@@ -39,6 +39,12 @@
       <span class="tag info">状态 {{ row.status }}</span>
       <span class="tag info">跳转 {{ row.hop_count }}</span>
       <span class="tag info">目录 {{ row.in_catalog }} · 收录 {{ row.in_sitemap }}</span>
+      {% set notice = notice_map.get(row.url) %}
+      {% if notice %}
+      <a class="tag {{ 'bad' if notice.assessment_level == 'error' else notice.assessment_level }}"
+         href="/notices?notice_no={{ notice.notice_no }}"
+         title="整改通知 {{ notice.notice_no }} · {{ notice.assessment_label }}">{{ notice.notice_no }} · {{ notice.assessment_label }}</a>
+      {% endif %}
     </div>
     <p class="addr">{{ row.url }}</p>
     <p class="evidence">

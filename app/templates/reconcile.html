@@ -113,6 +113,42 @@
     </table>
   </div>
 </section>
+
+{% if notice_ledger.total %}
+<section class="panel">
+  <header>
+    <h2>整改通知台账</h2>
+    <span><a href="/notices">通知明细</a> · 来源移除不计已修复，仍待复核</span>
+  </header>
+  <div class="body scroll">
+    <table class="grid">
+      <thead><tr><th>复核结论</th><th class="num">单数</th><th>说明</th></tr></thead>
+      <tbody>
+        <tr>
+          <td><span class="tag bad">仍有故障</span></td>
+          <td class="num">{{ notice_ledger.by_outcome.still_failing | num }}</td>
+          <td class="wrap">本次巡检仍在册，探测仍有缺陷</td>
+        </tr>
+        <tr>
+          <td><span class="tag warn">来源移除</span></td>
+          <td class="num">{{ notice_ledger.by_outcome.source_removed | num }}</td>
+          <td class="wrap">目录与收录都已移出该地址；不计已修复，仍待复核</td>
+        </tr>
+        <tr>
+          <td><span class="tag info">待复核</span></td>
+          <td class="num">{{ notice_ledger.by_outcome.pending | num }}</td>
+          <td class="wrap">出单后还没有新巡检复核</td>
+        </tr>
+        <tr>
+          <td><span class="tag ok">实测恢复</span></td>
+          <td class="num">{{ notice_ledger.by_outcome.recovered | num }}</td>
+          <td class="wrap">本次探测已对平</td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+</section>
+{% endif %}
 {% else %}
 <section class="panel"><div class="body"><p class="empty">还没有巡检记录。</p></div></section>
 {% endif %}

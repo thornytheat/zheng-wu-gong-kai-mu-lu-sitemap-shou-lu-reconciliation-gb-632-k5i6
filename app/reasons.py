@@ -96,6 +96,43 @@ ACTIONABLE_BUCKETS = ("new_dead", "new_redirect", "still_dead", "improved", "bas
 # 分桶优先级给页面排序用：越靠前越要先看
 CHANGE_RANK = {bucket: index for index, bucket in enumerate(CHANGE_ORDER)}
 
+# M8 整改通知复核结论：互斥且穷尽。来源移除不算已修复，通知仍在办。
+NOTICE_OUTCOMES: dict[str, dict[str, str]] = {
+    "pending": {"level": "info", "label": "待复核",
+                "note": "出单后还没有新巡检复核"},
+    "still_failing": {"level": "error", "label": "仍有故障",
+                      "note": "本次巡检仍在册，探测仍有缺陷"},
+    "source_removed": {"level": "warn", "label": "来源移除",
+                       "note": "目录与收录都已移出该地址；不计已修复，仍待复核"},
+    "recovered": {"level": "ok", "label": "实测恢复",
+                  "note": "本次探测已对平"},
+}
+NOTICE_OUTCOME_ORDER = tuple(NOTICE_OUTCOMES)
+# 页面排序：仍有故障与来源移除最靠前
+NOTICE_OUTCOME_RANK = {"still_failing": 0, "source_removed": 1, "pending": 2,
+                       "recovered": 3}
+NOTICE_STATUS = {"open": "在办", "recovered": "已恢复"}
+
+
+def notice_outcome_label(outcome: str) -> str:
+    return NOTICE_OUTCOMES.get(outcome, {}).get("label", outcome)
+
+
+def notice_outcome_level(outcome: str) -> str:
+    return NOTICE_OUTCOMES.get(outcome, {}).get("level", "info")
+
+
+def notice_outcome_note(outcome: str) -> str:
+    return NOTICE_OUTCOMES.get(outcome, {}).get("note", "")
+
+
+def notice_outcome_rank(outcome: str) -> int:
+    return NOTICE_OUTCOME_RANK.get(outcome, len(NOTICE_OUTCOME_RANK))
+
+
+def notice_status_label(status: str) -> str:
+    return NOTICE_STATUS.get(status, status)
+
 
 def change_label(bucket: str) -> str:
     return CHANGE_BUCKETS.get(bucket, {}).get("label", bucket)

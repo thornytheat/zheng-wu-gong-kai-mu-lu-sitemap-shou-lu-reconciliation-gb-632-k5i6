@@ -6,6 +6,7 @@ from fastapi.responses import Response
 
 from ... import errors, reasons
 from ...web import Ctx, get_ctx, render
+from ..m8_notice import service as notice_service
 from . import service
 
 router = APIRouter(tags=["M6 缺陷单"])
@@ -67,4 +68,5 @@ def page_defects(request: Request, run_id: str | None = None, site: str | None =
     return render(request, "defects.html", active="defects", data=data,
                   rows=data["rows"], site=site or "", category=category or "",
                   categories=reasons.CATEGORIES, explain=data["explain"],
-                  summary=data["summary"])
+                  summary=data["summary"],
+                  notice_map=notice_service.url_map(ctx.store))

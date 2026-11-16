@@ -1,8 +1,8 @@
 # 深度登记 sitemapaudit
 
-- 规模：中型（文件 81，Python 48，7 个功能模块，测试函数 85，用例 87）
-- 核心规则：canonical 规范化 7 步 → 逐跳探测 → 三向分类（7 类 + 对平），四账守恒；两次巡检按同一把比较键做变更分桶
-- 使用者与工作流：政务公开办网站编辑，季度巡检 3 站 2.4 万条目录；样例站 → 采信 → 规范化 → 可达性 → 三向对账 → 缺陷单导出 → 与上季度对比出回归清单
+- 规模：中型（文件 97，Python 54，8 个功能模块，测试函数 103，用例 105）
+- 核心规则：canonical 规范化 7 步 → 逐跳探测 → 三向分类（7 类 + 对平），四账守恒；两次巡检按同一把比较键做变更分桶；整改通知按地址出单、按批次追加复核
+- 使用者与工作流：政务公开办网站编辑，季度巡检 3 站 2.4 万条目录；样例站 → 采信 → 规范化 → 可达性 → 三向对账 → 缺陷单导出 → 与上季度对比出回归清单 → 出整改通知 → 下季度复核结论
 
 ## 功能模块
 
@@ -15,6 +15,7 @@
 | M5 巡检批次 | 查历史、停在中间、续跑 | GET /api/batches | `app/modules/m5_batches/service.py` `app/modules/m5_batches/state.py` `app/modules/m5_batches/history.py` | `tests/test_batches.py` |
 | M6 缺陷单 | 按分类筛缺陷、导出 CSV 与清单 | GET /api/defects | `app/modules/m6_defects/defect.py` `app/modules/m6_defects/csv_out.py` `app/modules/m6_defects/service.py` | `tests/test_defects.py` |
 | M7 变更监测 | 与上次对比、按站点看趋势、导回归清单 | GET /api/watch | `app/modules/m7_watch/diff.py` `app/modules/m7_watch/chain.py` `app/modules/m7_watch/service.py` | `tests/test_watch.py` |
+| M8 整改通知 | 出单、复核、看台账、导通知 CSV | POST /api/notices/issue | `app/modules/m8_notice/tracking.py` `app/modules/m8_notice/service.py` `app/modules/m8_notice/csv_out.py` | `tests/test_notice.py` |
 
 阶段编排在 `app/modules/m5_batches/service.py`：采信（M1）→ 规范化与探测（M2+M3）→ 对账（M4）→ 缺陷（M6）。
 停止点 `stop_after=crawl|probe` 可让每个阶段单独跑；`POST /api/batches/{run_id}/resume` 从剩余阶段接着跑，
@@ -46,6 +47,9 @@
 - 守恒：`tests/test_reconcile.py::test_status_partition_covers_all_probes`（可达三态之和 = 探测数）
 - 分桶：`tests/test_watch.py::test_bucket_table_covers_all_nine_combinations`（9 种状态组合都有归属，新增状态必须补表）
 - 不变量：`tests/test_defects.py::test_summary_totals_match_defect_rows`（分类合计 = 站点合计 = 缺陷条数）
+- 出单幂等：`tests/test_notice.py::test_issue_retry_does_not_duplicate`（重试出单 created=0，编号不变）
+- 依据不改：`tests/test_notice.py::test_basis_not_overwritten_by_revisions`（复核只追加修订记录，依据原样）
+- 来源移除：`tests/test_notice.py::test_new_run_auto_rechecks_notices`（移出地址记来源移除仍在办，且不进本次缺陷单）
 - 边界：`tests/test_catalog.py::test_sitemap_with_only_declaration_is_header_only`（只有声明记仅声明）
 - 边界：`tests/test_url.py::test_empty_query_value_kept_unless_tracking`（空值参数保留，只丢跟踪参数名）
 - 反例：`tests/test_reach.py::test_self_loop_is_cycle_not_hop_limit`（自环算成环，不算链过长）
@@ -68,6 +72,22 @@
 - 回归清单 = 新增死链 + 新恶化 + 仍未修复 + 已改善 + 基准不同；已修复与未变化不进。
 - 跳转环按环内成员集合合并；样例站当前没有环，判定逻辑由测试喂跳转链覆盖。
 - 基准优先级：库内更早的批次 → `sample_data/watch/baseline.json` → 提示无基准。
+
+## 整改通知规则
+
+- 三账分存：巡检在 `runs`，通知依据在 `notices`（出单时定稿，之后不改写），
+  整改跟踪在 `notice_revisions`（只追加）；当前结论由最新修订记录推导，通知行不存会变的结论。
+- 出单：`POST /api/notices/issue` 对一批巡检的缺陷地址开单，按比较键排序后顺序编号
+  （`ZG-0001` 起）；`notices.key` 唯一，同一地址只保留一个通知编号，重试不重复出单。
+- 复核：巡检批次 `done` 时自动复核（M5 调用 M8），也可 `POST /api/notices/recheck` 手动触发；
+  `(notice_no, run_id)` 唯一，同一批次重复复核只留一条；出单批次自身跳过。
+- 结论三选一 + 待复核：地址仍在册且仍有缺陷记「仍有故障」；仍在册且对平记「实测恢复」（办结）；
+  不在本次在册范围记「来源移除」——不计已修复，通知仍在办，等人工确认是整改撤下还是漏报目录。
+- 本次巡检只按当前在册范围计缺陷：移出的地址不进本次缺陷单，也不进新增；
+  它的整改进度挂在通知台账上，不会「自动完成」。
+- 恢复后再次故障（回归）复用同一通知编号追加修订记录，不另开新单。
+- 页面（/notices、/defects 徽标）、导出（/api/notices.csv）与对账（/reconcile 台账、
+  /api/reconcile 的 notice_ledger）都标明每条记录的复核结论。
 
 ## 已知不覆盖
 

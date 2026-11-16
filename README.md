@@ -14,6 +14,8 @@
 - 缺陷单：按分类筛选，CSV（含原始写法）与运行清单 JSON 导出，可打印
 - 批次：批次键幂等重跑、阶段可单独跑、可续跑
 - 变更监测：与上次巡检比新增死链 / 已修复 / 新恶化，按站点看趋势，导回归清单与快照
+- 整改通知：按批次出单、同一地址只保留一个通知编号；新巡检自动复核，
+  逐条标明仍有故障 / 实测恢复 / 来源移除；来源移除不计已修复，仍待复核
 
 ## 模块
 
@@ -26,9 +28,10 @@
 | M5 巡检批次 | 批次历史、停止点、续跑 | `GET /api/batches` `POST /api/batches/{run_id}/resume` |
 | M6 缺陷单 | 缺陷筛选、CSV、运行清单 | `GET /api/defects` `GET /api/defects.csv` `GET /api/export/manifest.json` |
 | M7 变更监测 | 两次巡检对比、站点趋势、回归清单、快照导出 | `GET /api/watch` `GET /api/watch/regressions.csv` `GET /api/watch/snapshot.json` |
+| M8 整改通知 | 出单、复核、台账、通知 CSV | `POST /api/notices/issue` `POST /api/notices/recheck` `GET /api/notices` `GET /api/notices.csv` |
 
 页面：`/` 巡检运行、`/sites` 站点与目录、`/reach` 可达性明细、`/reconcile` 对账缺陷、
-`/batches` 批次历史、`/defects` 缺陷单、`/watch` 变更监测。
+`/batches` 批次历史、`/defects` 缺陷单、`/watch` 变更监测、`/notices` 整改通知。
 
 ## 核心规则
 
@@ -41,6 +44,8 @@
    分成 9 格固定表；上次死链、本次能打开但要跳转的记「已改善」。
 5. 只在单侧出现的地址先看补全基准：同一相对写法按目录页地址与 sitemap 地址补全出
    两个键时记「基准不同」，不算新增也不算消失。
+6. 整改通知与巡检分开保存：通知依据出单时定稿不改写，每次新巡检只追加修订记录；
+   复核结论三选一——仍有故障 / 实测恢复 / 来源移除，来源移除不计已修复，仍待复核。
 
 ## 规则与已知不覆盖
 
@@ -77,11 +82,13 @@ SAMPLE_SITE_BASE=http://127.0.0.1:19201 SITEMAPAUDIT_DB=/tmp/audit.sqlite \
 3. `/reach` 按分类过滤，点开 `跳转链` 能看到两跳的旧路径。
 4. `/reconcile` 看四账与三向交叉表；`/defects` 导出 CSV 与运行清单并打印。
 5. `/watch` 看与上季度快照的差异，导出回归清单与本次快照。
+6. `/notices` 按批次出整改通知；下次巡检完成后自动复核，
+   看「来源移除 / 实测恢复 / 仍有故障」台账并导出通知 CSV。
 
 ## 测试
 
 ```bash
-pytest -q          # 85 个测试函数 / 87 个用例
+pytest -q          # 103 个测试函数 / 105 个用例
 python3 ~/.dsh/skills/pr-batch-simple/scripts/check_project.py . --scale medium
 ```
 

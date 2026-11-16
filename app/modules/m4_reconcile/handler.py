@@ -1,10 +1,11 @@
-"""M4 入口：对账结果页与 API（四账 + 交叉表 + 分类含义）。"""
+"""M4 入口：对账结果页与 API（四账 + 交叉表 + 分类含义 + 整改台账）。"""
 from __future__ import annotations
 
 from fastapi import APIRouter, Depends, Request
 
 from ... import errors
 from ...web import Ctx, get_ctx, render
+from ..m8_notice import service as notice_service
 
 router = APIRouter(tags=["M4 三向对账"])
 
@@ -18,7 +19,8 @@ def _payload(ctx: Ctx, run_id: str | None) -> dict:
             "crosstab": run.get("crosstab", {}),
             "by_site": run.get("by_site", []),
             "explain": run.get("explain", []),
-            "defects": run.get("defects", [])}
+            "defects": run.get("defects", []),
+            "notice_ledger": notice_service.ledger(ctx.store)}
 
 
 @router.get("/api/reconcile")
@@ -32,4 +34,5 @@ def page_reconcile(request: Request, run_id: str | None = None):
     data = _payload(ctx, run_id)
     return render(request, "reconcile.html", active="reconcile", data=data,
                   accounts=data["accounts"], crosstab=data["crosstab"],
-                  by_site=data["by_site"], explain=data["explain"])
+                  by_site=data["by_site"], explain=data["explain"],
+                  notice_ledger=data["notice_ledger"])

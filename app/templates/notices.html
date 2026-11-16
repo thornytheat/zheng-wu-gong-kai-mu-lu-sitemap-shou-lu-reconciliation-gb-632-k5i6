@@ -1,0 +1,128 @@
+{% extends "base.html" %}
+{% block title %}整改通知 · 目录对账{% endblock %}
+{% block body %}
+<div class="pagehead">
+  <h1>整改通知</h1>
+  <span class="amount">在办 {{ ledger.open | num }} · 已恢复 {{ ledger.recovered | num }} · 共 {{ ledger.total | num }} 单</span>
+</div>
+
+<section class="filters">
+  <form method="get" action="/notices">
+    <label for="site">站点</label>
+    <select id="site" name="site" onchange="this.form.submit()">
+      <option value="">全部</option>
+      {% for item in sites %}
+      <option value="{{ item.code }}" {{ 'selected' if item.code == site else '' }}>{{ item.name }}</option>
+      {% endfor %}
+    </select>
+    <label for="assessment">结论</label>
+    <select id="assessment" name="assessment" onchange="this.form.submit()">
+      <option value="">全部</option>
+      {% for code, item in outcomes.items() %}
+      <option value="{{ code }}" {{ 'selected' if code == assessment else '' }}>{{ item.label }}</option>
+      {% endfor %}
+    </select>
+    <label for="status">状态</label>
+    <select id="status" name="status" onchange="this.form.submit()">
+      <option value="">全部</option>
+      {% for code, label in statuses.items() %}
+      <option value="{{ code }}" {{ 'selected' if code == status else '' }}>{{ label }}</option>
+      {% endfor %}
+    </select>
+  </form>
+  <button class="primary" id="issue-btn" type="button" {% if not run %}disabled{% endif %}>按当前批次出单</button>
+  <button id="recheck-btn" type="button" {% if not run %}disabled{% endif %}>按当前批次复核</button>
+  <a class="btn" href="/api/notices.csv?site={{ site }}&assessment={{ assessment }}&status={{ status }}">导出 CSV</a>
+  <button type="button" id="print-btn">打印</button>
+</section>
+<div id="notice-msg" class="notice" hidden></div>
+
+{% if ledger.total %}
+<section class="ledger">
+  <div><dt>仍有故障</dt><dd>{{ ledger.by_outcome.still_failing | num }}<small>单</small></dd></div>
+  <div><dt>来源移除</dt><dd>{{ ledger.by_outcome.source_removed | num }}<small>单 · 仍待复核</small></dd></div>
+  <div><dt>待复核</dt><dd>{{ ledger.by_outcome.pending | num }}<small>单</small></dd></div>
+  <div><dt>实测恢复</dt><dd>{{ ledger.by_outcome.recovered | num }}<small>单</small></dd></div>
+</section>
+{% endif %}
+
+<section class="panel">
+  <header>
+    <h2>通知台账</h2>
+    <span>显示 {{ rows | length | num }} / 共 {{ data.total | num }} 单 · 来源移除不计已修复</span>
+  </header>
+  <div class="body scroll">
+    {% if rows %}
+    <table class="grid" id="notice-table">
+      <thead>
+        <tr><th>通知编号</th><th>站点</th><th>分类</th><th>复核结论</th><th>状态</th>
+            <th class="num">复核次数</th><th>最近复核</th><th>地址</th></tr>
+      </thead>
+      <tbody>
+      {% for row in rows %}
+        <tr>
+          <td><a href="/notices?notice_no={{ row.notice_no }}">{{ row.notice_no }}</a></td>
+          <td>{{ row.site }}</td>
+          <td>{{ row.category_label }}</td>
+          <td><span class="tag {{ 'bad' if row.assessment_level == 'error' else row.assessment_level }}">{{ row.assessment_label }}</span></td>
+          <td><span class="tag {{ 'ok' if row.status == 'recovered' else 'warn' }}">{{ row.status_label }}</span></td>
+          <td class="num">{{ row.revisions | num }}</td>
+          <td>{{ row.last_checked_at | localts }}</td>
+          <td class="addr" title="{{ row.url }}">{{ row.url }}</td>
+        </tr>
+      {% endfor %}
+      </tbody>
+    </table>
+    {% else %}
+    <p class="empty">还没有整改通知。先跑一次巡检，再按批次出单。</p>
+    {% endif %}
+  </div>
+</section>
+
+{% if chosen %}
+<section class="panel">
+  <header>
+    <h2>通知 {{ chosen.notice_no }}</h2>
+    <span>{{ chosen.status_label }} · 当前结论：{{ chosen.assessment_label }}</span>
+  </header>
+  <div class="body">
+    <div class="panel-2">
+      <section>
+        <h3>通知原始依据（出单时定稿，不改写）</h3>
+        <dl class="kv">
+          <dt>地址</dt><dd class="addr">{{ chosen.url }}</dd>
+          <dt>出单批次</dt><dd>{{ chosen.opened_run_id }}</dd>
+          <dt>出单时间</dt><dd>{{ chosen.opened_at | localts }}</dd>
+          <dt>分类</dt><dd>{{ chosen.basis.category_label }}</dd>
+          <dt>状态码</dt><dd>{{ chosen.basis.status }} · 跳转 {{ chosen.basis.hop_count }}</dd>
+          <dt>在册</dt><dd>目录 {{ chosen.basis.in_catalog }} · 收录 {{ chosen.basis.in_sitemap }}</dd>
+          {% if chosen.basis.reason_label %}<dt>原因</dt><dd>{{ chosen.basis.reason_label }}</dd>{% endif %}
+          {% if chosen.basis.raw_forms %}<dt>原始写法</dt><dd class="addr">{{ chosen.basis.raw_forms | join(" ｜ ") }}</dd>{% endif %}
+        </dl>
+      </section>
+      <section>
+        <h3>修订记录（每次新巡检只追加）</h3>
+        {% if chosen.revision_rows %}
+        <table class="grid">
+          <thead><tr><th>批次</th><th>复核时间</th><th>结论</th><th class="num">状态码</th></tr></thead>
+          <tbody>
+          {% for rev in chosen.revision_rows %}
+            <tr>
+              <td>{{ rev.run_id }}</td>
+              <td>{{ rev.checked_at | localts }}</td>
+              <td><span class="tag {{ 'bad' if rev.outcome_level == 'error' else rev.outcome_level }}">{{ rev.outcome_label }}</span></td>
+              <td class="num">{{ rev.detail.status if rev.detail.probed else "—" }}</td>
+            </tr>
+          {% endfor %}
+          </tbody>
+        </table>
+        {% else %}
+        <p class="empty">还没有修订记录：下一次巡检完成后自动复核。</p>
+        {% endif %}
+      </section>
+    </div>
+  </div>
+</section>
+{% endif %}
+{% endblock %}
+{% block scripts %}<script src="/static/notice.js" defer></script>{% endblock %}

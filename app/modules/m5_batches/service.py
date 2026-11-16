@@ -14,6 +14,7 @@ from ..m2_url import service as url_service
 from ..m3_reach import service as reach_service
 from ..m4_reconcile import service as reconcile_service
 from ..m6_defects import service as defect_service
+from ..m8_notice import service as notice_service
 from . import history, state
 
 
@@ -107,6 +108,7 @@ def full(settings, store, stop: str | None, sites: list[str] | None) -> dict:
     }
     _finish(result)
     store.save_run(result)
+    _recheck_notices(store, result)
     return _payload(result, reused=False)
 
 
@@ -170,7 +172,18 @@ def resume(settings, store, resume_of: str | None, stop: str | None) -> dict:
     })
     _finish(result)
     store.save_run(result)
+    _recheck_notices(store, result)
     return _payload(result, reused=False, note="RESUME_DONE")
+
+
+def _recheck_notices(store, result: dict) -> None:
+    """巡检完成后自动复核整改通知：新探测只追加修订记录，不动通知依据。
+
+    只对账平（done）的批次复核；部分完成或四账不平的批次不下结论。
+    复用旧批次（reused）不走这里，同一批次重复复核由唯一键挡住。
+    """
+    if result.get("status") == "done":
+        notice_service.recheck(store, result)
 
 
 def _finish(result: dict) -> None:

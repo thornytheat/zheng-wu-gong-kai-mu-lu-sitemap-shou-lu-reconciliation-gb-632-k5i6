@@ -24,6 +24,7 @@ NAV = (
     ("/batches", "批次历史", "batches"),
     ("/defects", "缺陷单", "defects"),
     ("/watch", "变更监测", "watch"),
+    ("/notices", "整改通知", "notice"),
 )
 RUN_STATUS = {"done": "完成", "partial": "部分完成", "failed": "失败", "running": "运行中"}
 
